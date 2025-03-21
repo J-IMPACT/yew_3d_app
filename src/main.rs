@@ -1,4 +1,3 @@
-use wasm_bindgen::prelude::*;
 use yew::Renderer;
 
 mod app;
@@ -7,8 +6,9 @@ mod render;
 
 use app::App;
 
-#[wasm_bindgen(start)]
 fn main() {
     console_error_panic_hook::set_once();
+    web_sys::console::log_1(&"Rust main() started".into());
+
     Renderer::<App>::new().render();
 }

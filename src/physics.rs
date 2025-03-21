@@ -1,11 +1,10 @@
-use std::ops::Add;
-use wasm_bindgen::prelude::*;
+use std::{cell::RefCell, ops::Add};
 
 #[derive(Clone, Copy, Debug)]
-struct Vec3 {
-    x: f64,
-    y: f64,
-    z: f64,
+pub struct Vec3 {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
 }
 
 impl Vec3 {
@@ -71,7 +70,7 @@ impl Body {
 }
 
 struct NBodySimulation {
-    bodies: Vec<Body>,
+    pub bodies: Vec<Body>,
     g: f64,
     dt: f64,
 }
@@ -80,11 +79,12 @@ impl NBodySimulation {
     fn new(n: usize) -> Self {
         let mut bodies = Vec::with_capacity(n);
         for i in 0..n {
+            let angle = (i as f64) * 0.2;
             bodies.push(Body::new(
                 Vec3 {
-                    x: (i as f64) * 0.01,
-                    y: (i as f64) * 0.02,
-                    z: (i as f64) * 0.03,
+                    x: angle.cos() * 10.0,
+                    y: angle.sin() * 10.0,
+                    z: 0.0,
                 },
                 1.0 + (i as f64) * 0.01,
             ));
@@ -92,7 +92,7 @@ impl NBodySimulation {
 
         Self {
             bodies,
-            g: 6.674e-11,
+            g: 1.0,
             dt: 0.016,
         }
     }
@@ -121,16 +121,35 @@ impl NBodySimulation {
         }
     }
 
-    fn run(&mut self, steps: usize) {
-        for _ in 0..steps {
-            self.step();
-        }
+    pub fn positions(&self) -> Vec<Vec3> {
+        self.bodies.iter().map(|b| b.position).collect()
     }
 }
 
-#[wasm_bindgen]
-pub async fn simulate_n_body(n: usize) {
-    let mut sim = NBodySimulation::new(n);
-    sim.run(100);
-    web_sys::console::log_1(&format!("Simulated {} bodies", n).into());
+thread_local! {
+    static SIM: RefCell<Option<NBodySimulation>> = RefCell::new(None);
+}
+
+pub fn init_simulation(n: usize) {
+    SIM.with(|sim| {
+        *sim.borrow_mut() = Some(NBodySimulation::new(n));
+    });
+}
+
+pub fn step_simulation() {
+    SIM.with(|sim| {
+        if let Some(sim) = &mut *sim.borrow_mut() {
+            sim.step();
+        }
+    });
+}
+
+pub fn get_positions() -> Vec<Vec3> {
+    SIM.with(|sim| {
+        if let Some(sim) = &*sim.borrow() {
+            sim.positions()
+        } else {
+            vec![]
+        }
+    })
 }
