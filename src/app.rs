@@ -1,7 +1,7 @@
 use yew::prelude::*;
 use gloo::timers::future::TimeoutFuture;
 use wasm_bindgen_futures::spawn_local;
-use crate::physics::{get_positions, init_simulation, step_simulation};
+use crate::physics::{fill_xy_f32, init_simulation, step_simulation};
 use crate::render::Renderer;
 
 #[function_component(App)]
@@ -35,6 +35,8 @@ pub fn app() -> Html {
             let running = running.clone();
 
             spawn_local(async move {
+                let mut xy: Vec<f32> = Vec::with_capacity(200 * 2);
+
                 loop {
                     if !*running.borrow() {
                         web_sys::console::log_1(&"Stopped".into());
@@ -42,10 +44,11 @@ pub fn app() -> Html {
                     }
 
                     step_simulation();
-                    let positions = get_positions();
+
+                    fill_xy_f32(&mut xy, 0.01);
 
                     if let Some(r) = &*renderer {
-                        r.render(&positions);
+                        r.render_xy(&xy);
                     }
 
                     TimeoutFuture::new(16).await;

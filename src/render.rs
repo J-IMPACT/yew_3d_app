@@ -1,10 +1,11 @@
-use crate::physics::Vec3;
 use wasm_bindgen::JsCast;
-use web_sys::{window, HtmlCanvasElement, WebGlRenderingContext as GL, WebGlProgram, WebGlShader};
+use web_sys::{HtmlCanvasElement, WebGlBuffer, WebGlProgram, WebGlRenderingContext as GL, WebGlShader, window};
 
 pub struct Renderer {
     gl: GL,
     program: WebGlProgram,
+    buffer: WebGlBuffer,
+    position_loc: u32,
 }
 
 impl Renderer {
@@ -28,14 +29,15 @@ impl Renderer {
 
         // シェーダーのソースコード
         let vert_shader_src = r#"
-            attribute vec4 position;
+            attribute vec2 position;
             void main() {
-                gl_Position = position;
+                gl_Position = vec4(position, 0.0, 1.0);
                 gl_PointSize = 2.0;
             }
         "#;
 
         let frag_shader_src = r#"
+            precision mediump float;
             void main() {
                 gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
             }
@@ -50,34 +52,30 @@ impl Renderer {
         gl.use_program(Some(&program));
         gl.clear_color(0.0, 0.0, 0.0, 1.0);
 
-        Self { gl, program }
+        let buffer = gl.create_buffer().expect("failed to create buffer");
+        gl.bind_buffer(GL::ARRAY_BUFFER, Some(&buffer));
+        
+        let position_loc = gl.get_attrib_location(&program, "position") as u32;
+        gl.enable_vertex_attrib_array(position_loc);
+        gl.vertex_attrib_pointer_with_i32(position_loc, 2, GL::FLOAT, false, 0, 0);
+
+        Self { gl, program, buffer, position_loc }
     }
 
-    pub fn render(&self, positions: &[Vec3]) {
+    pub fn render_xy(&self, xy: &[f32]) {
         self.gl.clear(GL::COLOR_BUFFER_BIT);
 
-        for pos in positions {
-            let x = (pos.x * 0.01) as f32;
-            let y = (pos.y * 0.01) as f32;
-            self.draw_point(x, y);
-        }
-    }
+        self.gl.use_program(Some(&self.program));
+        self.gl.bind_buffer(GL::ARRAY_BUFFER, Some(&self.buffer));
 
-    fn draw_point(&self, x: f32, y: f32) {
-        let vertices: [f32; 2] = [x, y];
-        let buffer = self.gl.create_buffer().expect("failed to create buffer");
-        self.gl.bind_buffer(GL::ARRAY_BUFFER, Some(&buffer));
+        let arr = js_sys::Float32Array::from(xy);
+        self.gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &arr, GL::DYNAMIC_DRAW);
 
-        // 安全なバッファデータの設定
-        unsafe {
-            let vert_array = js_sys::Float32Array::view(&vertices);
-            self.gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &vert_array, GL::STATIC_DRAW);
-        }
+        self.gl.enable_vertex_attrib_array(self.position_loc);
+        self.gl.vertex_attrib_pointer_with_i32(self.position_loc, 2, GL::FLOAT, false, 0, 0);
 
-        let position_attr_location = self.gl.get_attrib_location(&self.program, "position") as u32;
-        self.gl.enable_vertex_attrib_array(position_attr_location);
-        self.gl.vertex_attrib_pointer_with_i32(position_attr_location, 2, GL::FLOAT, false, 0, 0);
-        self.gl.draw_arrays(GL::POINTS, 0, 1);
+        let count = (xy.len() / 2) as i32;
+        self.gl.draw_arrays(GL::POINTS, 0, count);
     }
 }
 

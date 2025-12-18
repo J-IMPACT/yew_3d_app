@@ -71,6 +71,7 @@ impl Body {
 
 struct NBodySimulation {
     pub bodies: Vec<Body>,
+    forces: Vec<Vec3>,
     g: f64,
     dt: f64,
 }
@@ -92,6 +93,7 @@ impl NBodySimulation {
 
         Self {
             bodies,
+            forces: vec![Vec3::zero(); n],
             g: 1.0,
             dt: 0.016,
         }
@@ -99,7 +101,7 @@ impl NBodySimulation {
 
     fn step(&mut self) {
         let n = self.bodies.len();
-        let mut forces = vec![Vec3::zero(); n];
+        self.forces.fill(Vec3::zero());
 
         for i in 0..n {
             for j in 0..n {
@@ -109,20 +111,20 @@ impl NBodySimulation {
                     let dist = a.position.distance(b.position);
                     let dir = a.position.direction_to(b.position);
                     let f = self.g * a.mass * b.mass / (dist * dist + 1e-10);
-                    forces[i] = forces[i] + dir.scale(f);
+                    self.forces[i] = self.forces[i] + dir.scale(f);
                 }
             }
         }
 
-        for (body, &force) in self.bodies.iter_mut().zip(forces.iter()) {
+        for (body, &force) in self.bodies.iter_mut().zip(self.forces.iter()) {
             let accel = force.scale(1.0 / body.mass);
             body.velocity = body.velocity + accel.scale(self.dt);
             body.position = body.position + body.velocity.scale(self.dt);
         }
     }
 
-    pub fn positions(&self) -> Vec<Vec3> {
-        self.bodies.iter().map(|b| b.position).collect()
+    pub fn positions_slice(&self) -> &[Body] {
+        &self.bodies
     }
 }
 
@@ -144,12 +146,16 @@ pub fn step_simulation() {
     });
 }
 
-pub fn get_positions() -> Vec<Vec3> {
+pub fn fill_xy_f32(out: &mut Vec<f32>, scale: f64) {
     SIM.with(|sim| {
+        out.clear();
         if let Some(sim) = &*sim.borrow() {
-            sim.positions()
-        } else {
-            vec![]
+            let bodies = sim.positions_slice();
+            out.reserve(bodies.len() * 2);
+            for b in bodies {
+                out.push((b.position.x * scale) as f32);
+                out.push((b.position.y * scale) as f32);
+            }
         }
-    })
+    });
 }
