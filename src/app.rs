@@ -36,6 +36,7 @@ pub fn app() -> Html {
 
             spawn_local(async move {
                 let mut xy: Vec<f32> = Vec::with_capacity(200 * 2);
+                web_sys::console::log_1(&"Started".into());
 
                 loop {
                     if !*running.borrow() {
@@ -67,9 +68,13 @@ pub fn app() -> Html {
     html! {
         <>
             <h1>{ "Structured 3D N-Body Simulation (WASM + WebGL)" }</h1>
-            <button onclick={start_loop}>{ "Start" }</button>
-            <button onclick={stop_loop}>{ "Stop" }</button>
-            <canvas id="webgl-canvas" width="600" height="600"></canvas>
+            <div>
+                <canvas id="webgl-canvas" width="600" height="600"></canvas>
+            </div>
+            <div>
+                <button onclick={start_loop}>{ "Start" }</button>
+                <button onclick={stop_loop}>{ "Stop" }</button>
+            </div>
         </>
     }
 }
