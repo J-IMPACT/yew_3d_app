@@ -85,7 +85,7 @@ impl NBodySimulation {
                 Vec3 {
                     x: angle.cos() * 10.0,
                     y: angle.sin() * 10.0,
-                    z: 0.0,
+                    z: i as f64 * 0.01,
                 },
                 1.0 + (i as f64) * 0.01,
             ));
