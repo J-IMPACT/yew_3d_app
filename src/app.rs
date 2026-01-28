@@ -4,6 +4,8 @@ use wasm_bindgen_futures::spawn_local;
 use crate::physics::{fill_xy_f32, init_simulation, step_simulation};
 use crate::render::Renderer;
 
+const NUM_BODIES: usize = 1000;
+
 #[function_component(App)]
 pub fn app() -> Html {
     let running = use_mut_ref(|| false);
@@ -29,13 +31,13 @@ pub fn app() -> Html {
             }
 
             *running.borrow_mut() = true;
-            init_simulation(200);
+            init_simulation(NUM_BODIES);
 
             let renderer = renderer.clone();
             let running = running.clone();
 
             spawn_local(async move {
-                let mut xy: Vec<f32> = Vec::with_capacity(200 * 2);
+                let mut xy: Vec<f32> = Vec::with_capacity(NUM_BODIES * 2);
                 web_sys::console::log_1(&"Started".into());
 
                 loop {
