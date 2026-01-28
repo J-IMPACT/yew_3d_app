@@ -5,12 +5,15 @@ edition = "2021"
 
 [dependencies]
 console_error_panic_hook = "0.1.7"
+glam = "0.31.0"
 gloo = { version = "0.11.0", features = ["futures"] }
 js-sys = "0.3.77"
+once_cell = "1.21.3"
 wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4.50"
 web-sys = { version = "0.3.77", features = [
     "console", "Window", "Document", "HtmlCanvasElement", 
-    "WebGlBuffer", "WebGlProgram", "WebGlRenderingContext", "WebGlShader"
+    "WebGlBuffer", "WebGlProgram", "WebGlRenderingContext", 
+    "WebGlShader", "WebGlUniformLocation"
 ] }
 yew = { version = "0.21.0", features = ["csr"] }

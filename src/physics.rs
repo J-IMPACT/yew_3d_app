@@ -1,99 +1,54 @@
-use std::{cell::RefCell, ops::Add};
-
-#[derive(Clone, Copy, Debug)]
-pub struct Vec3 {
-    pub x: f64,
-    pub y: f64,
-    pub z: f64,
-}
-
-impl Vec3 {
-    fn zero() -> Self {
-        Vec3 { x: 0.0, y: 0.0, z: 0.0 }
-    }
-
-    fn scale(self, scalar: f64) -> Vec3 {
-        Vec3 {
-            x: self.x * scalar,
-            y: self.y * scalar,
-            z: self.z * scalar
-        }
-    }
-
-    fn distance(self, other: Vec3) -> f64 {
-        let dx = self.x - other.x;
-        let dy = self.y - other.y;
-        let dz = self.z - other.z;
-        (dx * dx + dy * dy + dz * dz).sqrt()
-    }
-
-    fn direction_to(self, target: Vec3) -> Vec3 {
-        let dx = target.x - self.x;
-        let dy = target.y - self.y;
-        let dz = target.z - self.z;
-        let dist = (dx * dx + dy * dy + dz * dz).sqrt() + 1e-10;
-        Vec3 {
-            x: dx / dist,
-            y: dy / dist,
-            z: dz / dist, 
-        }
-    }
-}
-
-impl Add for Vec3 {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Vec3 {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-            z: self.z + rhs.z
-        }
-    }
-}
+use std::cell::RefCell;
+use glam::Vec3;
+use once_cell::unsync::OnceCell;
 
 #[derive(Debug)]
 struct Body {
     position: Vec3,
     velocity: Vec3,
-    mass: f64,
+    mass: f32,
 }
 
 impl Body {
-    fn new(position: Vec3, mass: f64) -> Self {
+    fn new(position: Vec3, mass: f32) -> Self {
         Self {
             position,
-            velocity: Vec3::zero(),
+            velocity: Vec3::ZERO,
             mass
         }
     }
 }
 
 struct NBodySimulation {
-    pub bodies: Vec<Body>,
+    bodies: Vec<Body>,
     forces: Vec<Vec3>,
-    g: f64,
-    dt: f64,
+    g: f32,
+    dt: f32,
 }
 
 impl NBodySimulation {
     fn new(n: usize) -> Self {
         let mut bodies = Vec::with_capacity(n);
+        let radius = 8.0;
+        let height = 16.0;
+
         for i in 0..n {
-            let angle = (i as f64) * 0.2;
+            let t = i as f32 / n as f32;
+            let angle = t * std::f32::consts::TAU * 5.0;
+
             bodies.push(Body::new(
                 Vec3 {
-                    x: angle.cos() * 10.0,
-                    y: angle.sin() * 10.0,
-                    z: i as f64 * 0.01,
+                    x: angle.cos() * radius,
+                    y: angle.sin() * radius,
+                    z: (t - 0.5) * height,
                 },
-                1.0 + (i as f64) * 0.01,
+                1.0 + t,
             ));
         }
 
         Self {
             bodies,
-            forces: vec![Vec3::zero(); n],
+            forces: vec![Vec3::ZERO; n],
             g: 1.0,
             dt: 0.016,
         }
@@ -101,61 +56,62 @@ impl NBodySimulation {
 
     fn step(&mut self) {
         let n = self.bodies.len();
-        self.forces.fill(Vec3::zero());
+        self.forces.fill(Vec3::ZERO);
 
         for i in 0..n {
             for j in 0..n {
                 if i != j {
                     let a = &self.bodies[i];
                     let b = &self.bodies[j];
-                    let dist = a.position.distance(b.position);
-                    let dir = a.position.direction_to(b.position);
-                    let f = self.g * a.mass * b.mass / (dist * dist + 1e-10);
-                    self.forces[i] = self.forces[i] + dir.scale(f);
+
+                    let diff = b.position - a.position;
+                    let dist_sq = diff.length_squared() + 1e-6;
+                    let dir = diff.normalize();
+
+                    let f = self.g * a.mass * b.mass / dist_sq;
+                    self.forces[i] += dir * f;
                 }
             }
         }
 
-        for (body, &force) in self.bodies.iter_mut().zip(self.forces.iter()) {
-            let accel = force.scale(1.0 / body.mass);
-            body.velocity = body.velocity + accel.scale(self.dt);
-            body.position = body.position + body.velocity.scale(self.dt);
+        for (body, force) in self.bodies.iter_mut().zip(self.forces.iter()) {
+            let accel = *force / body.mass;
+            body.velocity += accel * self.dt;
+            body.position += body.velocity * self.dt;
         }
-    }
-
-    pub fn positions_slice(&self) -> &[Body] {
-        &self.bodies
     }
 }
 
 thread_local! {
-    static SIM: RefCell<Option<NBodySimulation>> = RefCell::new(None);
+    static SIM: OnceCell<RefCell<NBodySimulation>> = OnceCell::new();
 }
 
 pub fn init_simulation(n: usize) {
-    SIM.with(|sim| {
-        *sim.borrow_mut() = Some(NBodySimulation::new(n));
+    SIM.with(|cell| {
+        cell.get_or_init(|| {
+            RefCell::new(NBodySimulation::new(n))
+        });
     });
 }
 
 pub fn step_simulation() {
-    SIM.with(|sim| {
-        if let Some(sim) = &mut *sim.borrow_mut() {
-            sim.step();
-        }
+    SIM.with(|cell| {
+        let sim = cell.get().expect("Simulation not initialized");
+        sim.borrow_mut().step();
     });
 }
 
-pub fn fill_xy_f32(out: &mut Vec<f32>, scale: f64) {
-    SIM.with(|sim| {
+pub fn fill_xyz_f32(out: &mut Vec<f32>) {
+    SIM.with(|cell| {
         out.clear();
-        if let Some(sim) = &*sim.borrow() {
-            let bodies = sim.positions_slice();
-            out.reserve(bodies.len() * 2);
-            for b in bodies {
-                out.push((b.position.x * scale) as f32);
-                out.push((b.position.y * scale) as f32);
-            }
+        let sim = cell.get()
+            .expect("Simulation not initialized")
+            .borrow();
+        out.reserve(sim.bodies.len() * 3);
+        for b in &sim.bodies {
+            out.push(b.position.x);
+            out.push(b.position.y);
+            out.push(b.position.z);
         }
     });
 }
